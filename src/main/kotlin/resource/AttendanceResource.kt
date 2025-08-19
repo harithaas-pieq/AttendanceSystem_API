@@ -1,15 +1,21 @@
 import jakarta.ws.rs.* //Brings in JAX-RS annotations
 import jakarta.ws.rs.core.Response //Class to build HTTP custom responses.
+import model.Attendance
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.ConcurrentHashMap
+
 
 @Path("/attendance")
-class AttendanceResource {
-
+class AttendanceResource(
+    private val records: MutableList<Attendance>,
+    private val activeCheckIns: ConcurrentHashMap<String, Attendance>
+    )
+    {
     @POST
     @Path("/checkin")
     fun checkIn(request: CheckInDTO): Response { //JAX-RS automatically maps the incoming JSON into a Kotlin object (CheckInDTO) if the request body matches its fields
-        if (AttendanceList.activeCheckIns.containsKey(request.id)) {
+        if (activeCheckIns.containsKey(request.id)) {
             return Response.status(Response.Status.CONFLICT)
                 .entity(  // Attach data to response body
                     mapOf(
@@ -22,8 +28,8 @@ class AttendanceResource {
         }
 
         val newRecord = Attendance(Employeeid = request.id, checkInTime = LocalDateTime.now())
-        AttendanceList.activeCheckIns[request.id] = newRecord
-        AttendanceList.records.add(newRecord)
+        activeCheckIns[request.id] = newRecord
+        records.add(newRecord)
 
         return Response.status(Response.Status.CREATED).entity(
             mapOf(
@@ -38,7 +44,7 @@ class AttendanceResource {
     @POST
     @Path("/checkout")
     fun checkOut(request: CheckOutDTO): Response {
-        val activeRecord = AttendanceList.activeCheckIns.remove(request.id)
+        val activeRecord = activeCheckIns.remove(request.id)
 
         return if (activeRecord != null) {
             val checkOutTime = LocalDateTime.now()
@@ -76,7 +82,7 @@ class AttendanceResource {
                 "status" to "success",
                 "code" to Response.Status.OK.statusCode,
                 "message" to "All attendance records retrieved successfully",
-                "data" to AttendanceList.records //returns all the records from the AttendanceList
+                "data" to records //returns all the records from the service.AttendanceList
             )
         ).build()
     }
